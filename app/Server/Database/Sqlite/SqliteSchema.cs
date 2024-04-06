@@ -8,7 +8,7 @@ using DHT.Utils.Logging;
 namespace DHT.Server.Database.Sqlite;
 
 sealed class SqliteSchema {
-	internal const int Version = 7;
+	internal const int Version = 8;
 
 	private static readonly Log Log = Log.ForType<SqliteSchema>();
 
@@ -117,6 +117,7 @@ sealed class SqliteSchema {
 		await CreateMessageEditTimestampTable(conn);
 		await CreateMessageRepliedToTable(conn);
 		await CreateDownloadTables(conn);
+		await CreatePollTables(conn);
 
 		await conn.ExecuteAsync("CREATE INDEX attachments_message_ix ON attachments(message_id)");
 		await conn.ExecuteAsync("CREATE INDEX embeds_message_ix ON embeds(message_id)");
@@ -163,6 +164,31 @@ sealed class SqliteSchema {
 		                        """);
 	}
 
+	internal static async Task CreatePollTables(ISqliteConnection conn) {
+		await conn.ExecuteAsync("""
+		                        CREATE TABLE polls (
+		                        	message_id       INTEGER NOT NULL PRIMARY KEY,
+		                        	question         TEXT NOT NULL,
+		                        	multi_select     INTEGER NOT NULL,
+		                        	expiry_timestamp INTEGER NOT NULL
+		                        )
+		                        """);
+
+		await conn.ExecuteAsync("""
+		                        CREATE TABLE poll_answers (
+		                        	message_id     INTEGER NOT NULL,
+		                        	answer_id      INTEGER NOT NULL,
+		                        	text           TEXT NOT NULL,
+		                        	emoji_id       INTEGER,
+		                        	emoji_name     TEXT,
+		                        	emoji_flags    INTEGER,
+		                        	PRIMARY KEY (message_id, answer_id)
+		                        )
+		                        """);
+
+		await conn.ExecuteAsync("CREATE INDEX poll_answers_message_ix ON poll_answers(message_id)");
+	}
+
 	private async Task UpgradeSchemas(int dbVersion, ISchemaUpgradeCallbacks.IProgressReporter reporter) {
 		var upgrades = new Dictionary<int, ISchemaUpgrade> {
 			{ 1, new SqliteSchemaUpgradeTo2() },
@@ -171,6 +197,7 @@ sealed class SqliteSchema {
 			{ 4, new SqliteSchemaUpgradeTo5() },
 			{ 5, new SqliteSchemaUpgradeTo6() },
 			{ 6, new SqliteSchemaUpgradeTo7() },
+			{ 7, new SqliteSchemaUpgradeTo8() },
 		};
 
 		var perf = Log.Start("from version " + dbVersion);
