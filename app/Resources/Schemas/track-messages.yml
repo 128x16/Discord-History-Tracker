@@ -73,6 +73,50 @@ items:
               - required:
                   - name
                   - count
+        poll:
+          type: object
+          properties:
+            question:
+              type: string
+            answers:
+              type: array
+              items:
+                type: object
+                properties:
+                  id:
+                    type: number
+                  text:
+                    type: string
+                  emoji:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                        pattern: "^[0-9]+$"
+                      name:
+                        type: string
+                      isAnimated:
+                        type: boolean
+                    required:
+                      - id
+                      - name
+                anyOf:
+                  required:
+                    - id
+                    - text
+                  required:
+                    - id
+                    - emoji
+            multiSelect:
+              type: boolean
+            expiryTimestamp:
+              type: string
+              pattern: "^[0-9]+$"
+          required:
+            - question
+            - answers
+            - multiSelect
+            - expiryTimestamp
       required:
         - id
         - sender

@@ -57,6 +57,7 @@ sealed class TrackMessagesEndpoint : BaseEndpoint {
 		Attachments = json.HasKey("attachments") ? ReadAttachments(json.RequireArray("attachments", path + ".attachments"), path + ".attachments[]").ToImmutableList() : ImmutableList<Attachment>.Empty,
 		Embeds = json.HasKey("embeds") ? ReadEmbeds(json.RequireArray("embeds", path + ".embeds"), path + ".embeds[]").ToImmutableList() : ImmutableList<Embed>.Empty,
 		Reactions = json.HasKey("reactions") ? ReadReactions(json.RequireArray("reactions", path + ".reactions"), path + ".reactions[]").ToImmutableList() : ImmutableList<Reaction>.Empty,
+		Poll = json.HasKey("poll") ? ReadPoll(json.RequireObject("poll", path + ".poll"), path + ".poll") : null,
 	};
 
 	[SuppressMessage("ReSharper", "ConvertToLambdaExpression")]
@@ -99,4 +100,24 @@ sealed class TrackMessagesEndpoint : BaseEndpoint {
 	private static EmojiFlags ReadEmojiFlag(JsonElement ele, string key, string path, EmojiFlags flag) {
 		return ele.HasKey(key) && ele.RequireBool(key, path) ? flag : EmojiFlags.None;
 	}
+
+	private static Poll ReadPoll(JsonElement ele, string path) => new () {
+		Question = ele.RequireString("question", path),
+		Answers = ReadPollAnswers(ele.RequireArray("answers", path), path + ".answers[]").ToImmutableList(),
+		MultiSelect = ele.RequireBool("multiSelect", path),
+		ExpiryTimestamp = ele.RequireLong("expiryTimestamp", path),
+	};
+
+	private static IEnumerable<PollAnswer> ReadPollAnswers(JsonElement.ArrayEnumerator array, string path) => array.Select(ele => {
+		var hasEmoji = ele.TryGetProperty("emoji", out var eleEmoji);
+		var answer = new PollAnswer {
+			Id = ele.RequireInt("id", path),
+			Text = ele.RequireString("text", path),
+			EmojiId = hasEmoji && eleEmoji.HasKey("id") ? eleEmoji.RequireSnowflake("id", path + ".emoji") : null,
+			EmojiName = hasEmoji && eleEmoji.HasKey("name") ? eleEmoji.RequireString("name", path + ".emoji") : null,
+			EmojiFlags = hasEmoji ? ReadEmojiFlag(eleEmoji, "isAnimated", path + ".emoji", EmojiFlags.Animated) : EmojiFlags.None,
+		};
+
+		return answer;
+	});
 }

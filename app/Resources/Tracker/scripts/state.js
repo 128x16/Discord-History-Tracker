@@ -287,6 +287,41 @@ const STATE = (function() {
 					});
 				}
 				
+				if (msg.poll) {
+					obj.poll = {
+						question: msg.poll.question.text,
+						answers: msg.poll.answers.map(answer => {
+							console.log(answer);
+							const mapped = {
+								id: answer.answer_id,
+								text: answer.poll_media.text
+							};
+							
+							if (answer.poll_media.emoji) {
+								const emoji = answer.poll_media.emoji;
+								mapped.emoji = {};
+								
+								if (emoji.id) {
+									mapped.emoji.id = String(emoji.id);
+								}
+								
+								if (emoji.name) {
+									mapped.emoji.name = emoji.name;
+								}
+								
+								if (emoji.animated) {
+									// noinspection JSUnusedGlobalSymbols
+									mapped.emoji.isAnimated = emoji.animated;
+								}
+							}
+							
+							return mapped;
+						}),
+						multiSelect: msg.poll.allow_multiselect,
+						expiryTimestamp: getDate(msg.poll.expiry).getTime()
+					}
+				}
+				
 				if (msg.reactions.length > 0) {
 					obj.reactions = msg.reactions.map(reaction => {
 						const emoji = reaction.emoji;
@@ -296,7 +331,7 @@ const STATE = (function() {
 						};
 						
 						if (emoji.id) {
-							mapped.id = emoji.id;
+							mapped.id = String(emoji.id);
 						}
 						
 						if (emoji.name) {

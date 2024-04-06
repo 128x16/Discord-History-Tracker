@@ -13,4 +13,5 @@ public readonly struct Message {
 	public ImmutableList<Attachment> Attachments { get; init; }
 	public ImmutableList<Embed> Embeds { get; init; }
 	public ImmutableList<Reaction> Reactions { get; init; }
+	public Poll? Poll { get; init; }
 }
