@@ -42,7 +42,7 @@
 	let isSending = false;
 	
 	const onError = function(e) {
-		console.log(e);
+		console.error(e);
 		GUI.setStatus(e.status === "DISCONNECTED" ? "Disconnected" : "Error");
 		stopTrackingDelayed(() => isSending = false);
 	};
