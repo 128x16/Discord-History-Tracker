@@ -324,9 +324,13 @@ const STATE = (function() {
 					obj.reactions = msg.reactions.map(reaction => {
 						const emoji = reaction.emoji;
 						
-						const mapped = {
-							count: reaction.count
-						};
+						const mapped = {};
+
+						if (msg.poll) {
+							mapped.count = reaction.count_details.vote;
+						} else {
+							mapped.count = reaction.count;
+						}
 						
 						if (emoji.id) {
 							mapped.id = String(emoji.id);
