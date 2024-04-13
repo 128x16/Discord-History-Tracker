@@ -100,10 +100,14 @@ sealed class TrackMessagesEndpoint(IDatabaseFile db) : BaseEndpoint(db) {
 		return ele.HasKey(key) && ele.RequireBool(key, path) ? flag : EmojiFlags.None;
 	}
 
+	private static PollFlags ReadPollFlag(JsonElement ele, string key, string path, PollFlags flag) {
+		return ele.HasKey(key) && ele.RequireBool(key, path) ? flag : PollFlags.None;
+	}
+
 	private static Poll ReadPoll(JsonElement ele, string path) => new () {
 		Question = ele.RequireString("question", path),
 		Answers = ReadPollAnswers(ele.RequireArray("answers", path), path + ".answers[]").ToImmutableList(),
-		MultiSelect = ele.RequireBool("multiSelect", path),
+		Flags = ReadPollFlag(ele, "multiSelect", path, PollFlags.MultiSelect),
 		ExpiryTimestamp = ele.RequireLong("expiryTimestamp", path),
 	};
 

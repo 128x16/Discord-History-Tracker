@@ -98,7 +98,7 @@ sealed class SqliteMessageRepository : BaseSqliteRepository, IMessageRepository 
 			await using var pollCmd = conn.Insert("polls", [
 				("message_id", SqliteType.Integer),
 				("question", SqliteType.Text),
-				("multi_select", SqliteType.Integer),
+				("flags", SqliteType.Integer),
 				("expiry_timestamp", SqliteType.Integer)
 			]);
 
@@ -193,7 +193,7 @@ sealed class SqliteMessageRepository : BaseSqliteRepository, IMessageRepository 
 				if (message.Poll is {} poll) {
 					pollCmd.Set(":message_id", messageId);
 					pollCmd.Set(":question", poll.Question);
-					pollCmd.Set(":multi_select", poll.MultiSelect);
+					pollCmd.Set(":flags", (int) poll.Flags);
 					pollCmd.Set(":expiry_timestamp", poll.ExpiryTimestamp);
 					await pollCmd.ExecuteNonQueryAsync();
 
@@ -324,7 +324,7 @@ sealed class SqliteMessageRepository : BaseSqliteRepository, IMessageRepository 
 			$"""
 			 SELECT m.message_id, m.sender_id, m.channel_id, m.text, m.timestamp,
 			        et.edit_timestamp, rt.replied_to_id,
-			        pl.question, pl.multi_select, pl.expiry_timestamp
+			        pl.question, pl.flags, pl.expiry_timestamp
 			 FROM messages m
 			 LEFT JOIN edit_timestamps et ON m.message_id = et.message_id
 			 LEFT JOIN replied_to rt ON m.message_id = rt.message_id
@@ -352,7 +352,7 @@ sealed class SqliteMessageRepository : BaseSqliteRepository, IMessageRepository 
 				Poll = reader.IsDBNull(7) ? null : new Poll {
 					Question = reader.GetString(7),
 					Answers = await pollAnswerCmd.GetItems(messageId),
-					MultiSelect = reader.GetBoolean(8),
+					Flags = (PollFlags) reader.GetInt16(8),
 					ExpiryTimestamp = reader.GetInt64(9),
 				}
 			};
