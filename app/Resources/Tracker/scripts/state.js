@@ -326,7 +326,7 @@ const STATE = (function() {
 						
 						const mapped = {};
 
-						if (msg.poll) {
+						if (typeof reaction.count_details.vote === "number") {
 							mapped.count = reaction.count_details.vote;
 						} else {
 							mapped.count = reaction.count;
