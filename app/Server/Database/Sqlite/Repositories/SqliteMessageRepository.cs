@@ -60,6 +60,9 @@ sealed class SqliteMessageRepository(SqliteConnectionPool pool, SqliteDownloadRe
 			await using var deleteMessageEmbedsCmd = DeleteByMessageId(conn, "message_embeds");
 			await using var deleteMessageReactionsCmd = DeleteByMessageId(conn, "message_reactions");
 
+			await using var deleteMessagePollsCmd = DeleteByMessageId(conn, "message_polls");
+			await using var deleteMessagePollAnswersCmd = DeleteByMessageId(conn, "message_poll_answers");
+
 			await using var messageEditTimestampCmd = conn.Insert("message_edit_timestamps", [
 				("message_id", SqliteType.Integer),
 				("edit_timestamp", SqliteType.Integer)
@@ -88,6 +91,22 @@ sealed class SqliteMessageRepository(SqliteConnectionPool pool, SqliteDownloadRe
 				("count", SqliteType.Integer)
 			]);
 
+			await using var pollCmd = conn.Insert("message_polls", [
+				("message_id", SqliteType.Integer),
+				("question", SqliteType.Text),
+				("multi_select", SqliteType.Integer),
+				("expiry_timestamp", SqliteType.Integer)
+			]);
+
+			await using var pollAnswerCmd = conn.Insert("message_poll_answers", [
+				("message_id", SqliteType.Integer),
+				("answer_id", SqliteType.Integer),
+				("text", SqliteType.Text),
+				("emoji_id", SqliteType.Integer),
+				("emoji_name", SqliteType.Text),
+				("emoji_flags", SqliteType.Integer)
+			]);
+
 			await using var downloadCollector = new SqliteDownloadRepository.NewDownloadCollector(downloads, conn);
 
 			foreach (var message in messages) {
@@ -106,6 +125,9 @@ sealed class SqliteMessageRepository(SqliteConnectionPool pool, SqliteDownloadRe
 				await ExecuteDeleteByMessageId(deleteMessageAttachmentsCmd, messageId);
 				await ExecuteDeleteByMessageId(deleteMessageEmbedsCmd, messageId);
 				await ExecuteDeleteByMessageId(deleteMessageReactionsCmd, messageId);
+
+				await ExecuteDeleteByMessageId(deleteMessagePollsCmd, messageId);
+				await ExecuteDeleteByMessageId(deleteMessagePollAnswersCmd, messageId);
 
 				if (message.EditTimestamp is {} timestamp) {
 					messageEditTimestampCmd.Set(":message_id", messageId);
@@ -164,6 +186,28 @@ sealed class SqliteMessageRepository(SqliteConnectionPool pool, SqliteDownloadRe
 
 						if (reaction.EmojiId is {} emojiId) {
 							await downloadCollector.Add(DownloadLinkExtractor.FromEmoji(emojiId, reaction.EmojiFlags));
+						}
+					}
+				}
+
+				if (message.Poll is {} poll) {
+					pollCmd.Set(":message_id", messageId);
+					pollCmd.Set(":question", poll.Question);
+					pollCmd.Set(":multi_select", poll.MultiSelect);
+					pollCmd.Set(":expiry_timestamp", poll.ExpiryTimestamp);
+					await pollCmd.ExecuteNonQueryAsync();
+
+					foreach (var answer in poll.Answers) {
+						pollAnswerCmd.Set(":message_id", messageId);
+						pollAnswerCmd.Set(":answer_id", answer.Id);
+						pollAnswerCmd.Set(":text", answer.Text);
+						pollAnswerCmd.Set(":emoji_id", answer.EmojiId);
+						pollAnswerCmd.Set(":emoji_name", answer.EmojiName);
+						pollAnswerCmd.Set(":emoji_flags", (int) answer.EmojiFlags);
+						await pollAnswerCmd.ExecuteNonQueryAsync();
+
+						if (answer.EmojiId is {} emojiId) {
+							await downloadCollector.Add(DownloadLinkExtractor.FromEmoji(emojiId, answer.EmojiFlags));
 						}
 					}
 				}
@@ -262,12 +306,29 @@ sealed class SqliteMessageRepository(SqliteConnectionPool pool, SqliteDownloadRe
 			Count = reader.GetInt32(3),
 		});
 
+		const string PollAnswerSql =
+			"""
+			SELECT answer_id, text, emoji_id, emoji_name, emoji_flags
+			FROM message_poll_answers
+			WHERE message_id = :message_id
+			""";
+
+		await using var pollAnswerCmd = new MessageToManyCommand<PollAnswer>(conn, PollAnswerSql, static reader => new PollAnswer {
+			Id = reader.GetInt32(0),
+			Text = reader.GetString(1),
+			EmojiId = reader.IsDBNull(2) ? null : reader.GetUint64(2),
+			EmojiName = reader.IsDBNull(3) ? null : reader.GetString(3),
+			EmojiFlags = (EmojiFlags) reader.GetInt16(4),
+		});
+
 		await using var messageCmd = conn.Command(
 			$"""
-			 SELECT m.message_id, m.sender_id, m.channel_id, m.text, m.timestamp, met.edit_timestamp, mrt.replied_to_id
+			 SELECT m.message_id, m.sender_id, m.channel_id, m.text, m.timestamp, met.edit_timestamp, mrt.replied_to_id,
+			        pl.question, pl.multi_select, pl.expiry_timestamp
 			 FROM messages m
 			 LEFT JOIN message_edit_timestamps met ON m.message_id = met.message_id
 			 LEFT JOIN message_replied_to mrt ON m.message_id = mrt.message_id
+			 LEFT JOIN message_polls pl ON m.message_id = pl.message_id
 			 {filter.GenerateConditions("m").BuildWhereClause()}
 			 """
 		);
@@ -287,7 +348,13 @@ sealed class SqliteMessageRepository(SqliteConnectionPool pool, SqliteDownloadRe
 				RepliedToId = reader.IsDBNull(6) ? null : reader.GetUint64(6),
 				Attachments = await attachmentCmd.GetItems(messageId),
 				Embeds = await embedCmd.GetItems(messageId),
-				Reactions = await reactionsCmd.GetItems(messageId)
+				Reactions = await reactionsCmd.GetItems(messageId),
+				Poll = reader.IsDBNull(7) ? null : new Poll {
+					Question = reader.GetString(7),
+					Answers = await pollAnswerCmd.GetItems(messageId),
+					MultiSelect = reader.GetBoolean(8),
+					ExpiryTimestamp = reader.GetInt64(9),
+				}
 			};
 		}
 	}
