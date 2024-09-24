@@ -181,7 +181,7 @@ sealed class SqliteSchema {
 		                        CREATE TABLE message_polls (
 		                        	message_id       INTEGER NOT NULL PRIMARY KEY,
 		                        	question         TEXT NOT NULL,
-		                        	multi_select     INTEGER NOT NULL,
+		                        	flags            INTEGER NOT NULL,
 		                        	expiry_timestamp INTEGER NOT NULL
 		                        )
 		                        """);
